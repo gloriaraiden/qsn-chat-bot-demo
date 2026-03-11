@@ -39,7 +39,7 @@ log = logging.getLogger("ig-gemini-bot")
 # ---------------------------------------------------------------------------
 # Gemini setup
 # ---------------------------------------------------------------------------
-genai.configure(api_key=GEMINI_API_KEY)
+
 
 SYSTEM_INSTRUCTION = (
     "You are an AI assistant in an Instagram group chat. "
@@ -50,10 +50,7 @@ SYSTEM_INSTRUCTION = (
     "Answer directly without filler words."
 )
 
-gemini_model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
-    system_instruction=SYSTEM_INSTRUCTION,
-)
+
 
 # ---------------------------------------------------------------------------
 # Image-generation keyword blocklist (Turkish + English)
@@ -152,21 +149,21 @@ async def _send_ig_message(target_id: str, text: str) -> None:
 # Model tanımlama ve soru sorma işlemi (Örnek)
 async def _ask_gemini(prompt: str) -> str:
     try:
-        # Yeni client oluşturuluyor
-        client = genai.Client()
+        # Yeni sistemde Client oluşturuyoruz
+        client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # Yeni sisteme göre içerik oluşturuluyor
+        # Cevabı yeni sisteme göre alıyoruz
         response = client.models.generate_content(
-            model='gemini-2.0-flash', # Veya gemini-1.5-flash
+            model='gemini-1.5-flash-latest',
             contents=prompt,
-            config=genai.types.GenerateContentConfig(
+            config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
             ),
         )
         return response.text
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
-        return "Üzgünüm, şu anda yanıt oluşturamıyorum. Lütfen biraz sonra tekrar deneyin."
+        return "Üzgünüm, şu anda yanıt oluşturamıyorum."
 
 
 # ---------------------------------------------------------------------------

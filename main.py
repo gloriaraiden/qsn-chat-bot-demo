@@ -133,7 +133,7 @@ def _wants_image(text: str) -> bool:
 async def _send_ig_message(recipient_thread_id: str, text: str) -> None:
     """Send a text message back to the Instagram thread."""
     payload = {
-        "recipient": {"thread_key": recipient_thread_id},
+        "recipient": {"id": recipient_id}
         "message": {"text": text[:MAX_RESPONSE_CHARS]},
     }
     headers = {
@@ -245,9 +245,9 @@ async def _handle_message(event: dict) -> None:
     #    return
 
     # --- Rule 2: Mention trigger ---
-    # if not _contains_mention(text):
-    #    log.debug("Ignoring message without bot mention from %s", sender_id)
-    #    return
+     if not _contains_mention(text):
+       log.debug("Ignoring message without bot mention from %s", sender_id)
+       return
 
     log.info("Processing message from %s: %s", sender_id, text[:80])
 

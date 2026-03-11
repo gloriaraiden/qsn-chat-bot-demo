@@ -152,7 +152,7 @@ async def _ask_gemini(prompt: str) -> str:
         client = genai.Client(api_key=GEMINI_API_KEY)
         
         response = client.models.generate_content(
-            model='gemini-2.0-flash',  # '-latest' takısını tamamen sildik
+            model='gemini-1.5-flash-8b',  # '-latest' takısını tamamen sildik
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,

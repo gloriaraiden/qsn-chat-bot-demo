@@ -149,12 +149,10 @@ async def _send_ig_message(target_id: str, text: str) -> None:
 # Model tanımlama ve soru sorma işlemi (Örnek)
 async def _ask_gemini(prompt: str) -> str:
     try:
-        # Yeni sistemde Client oluşturuyoruz
         client = genai.Client(api_key=GEMINI_API_KEY)
         
-        # Cevabı yeni sisteme göre alıyoruz
         response = client.models.generate_content(
-            model='gemini-1.5-flash-latest',
+            model='gemini-1.5-flash',  # '-latest' takısını tamamen sildik
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
@@ -162,8 +160,9 @@ async def _ask_gemini(prompt: str) -> str:
         )
         return response.text
     except Exception as e:
-        logger.error(f"Gemini API error: {e}")
-        return "Üzgünüm, şu anda yanıt oluşturamıyorum."
+        # 'logger' kelimesini garantili olsun diye 'print' ile değiştirdik
+        print(f"Gemini API hatası: {e}") 
+        return "Üzgünüm, şu anda yanıt oluşturamıyorum. Lütfen biraz sonra tekrar deneyin."
 
 
 # ---------------------------------------------------------------------------

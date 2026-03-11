@@ -130,10 +130,10 @@ def _wants_image(text: str) -> bool:
     return bool(IMAGE_PATTERN.search(text))
 
 
-async def _send_ig_message(recipient_thread_id: str, text: str) -> None:
+async def _send_ig_message(target_id: str, text: str) -> None:
     """Send a text message back to the Instagram thread."""
     payload = {
-        "recipient": {"id": recipient_id},
+        "recipient": {"id": target_id},
         "message": {"text": text[:MAX_RESPONSE_CHARS]},
     }
     headers = {
@@ -145,7 +145,7 @@ async def _send_ig_message(recipient_thread_id: str, text: str) -> None:
         if resp.status_code != 200:
             log.error("IG send failed (%s): %s", resp.status_code, resp.text)
         else:
-            log.info("Message sent to thread %s", recipient_thread_id)
+            log.info("Message sent to thread %s", target_id)
 
 
 async def _ask_gemini(prompt: str) -> str:

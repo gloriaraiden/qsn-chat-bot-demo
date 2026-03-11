@@ -240,14 +240,14 @@ async def _handle_message(event: dict) -> None:
         return
 
     # --- Rule 1: Target thread only ---
-    if thread_id != TARGET_THREAD_ID:
-        log.debug("Ignoring message from non-target thread %s", thread_id)
-        return
+    #if thread_id != TARGET_THREAD_ID:
+    #    log.debug("Ignoring message from non-target thread %s", thread_id)
+    #    return
 
     # --- Rule 2: Mention trigger ---
-    if not _contains_mention(text):
-        log.debug("Ignoring message without bot mention from %s", sender_id)
-        return
+    # if not _contains_mention(text):
+    #    log.debug("Ignoring message without bot mention from %s", sender_id)
+    #    return
 
     log.info("Processing message from %s: %s", sender_id, text[:80])
 
@@ -265,7 +265,7 @@ async def _handle_message(event: dict) -> None:
                 reply = f"Bir sonraki mesaj için {minutes} dakika beklemeniz gerekiyor."
             else:
                 reply = f"Bir sonraki mesaj için {seconds} saniye beklemeniz gerekiyor."
-        await _send_ig_message(TARGET_THREAD_ID, reply)
+        await _send_ig_message(sender_id, reply)
         return
 
     # --- Rule 3: Cooldown — stay completely silent to prevent spam ---
@@ -278,18 +278,18 @@ async def _handle_message(event: dict) -> None:
     prompt = _strip_mention(text)
 
     if not prompt:
-        await _send_ig_message(TARGET_THREAD_ID, "Lütfen bir soru veya mesaj yazın.")
+        await _send_ig_message(sender_id, "Lütfen bir soru veya mesaj yazın.")
         return
 
     # --- Rule 5: Image generation prevention ---
     if _wants_image(prompt):
-        await _send_ig_message(TARGET_THREAD_ID, "Şu anlık görsel oluşturamıyorum.")
+        await _send_ig_message(sender_id, "Şu anlık görsel oluşturamıyorum.")
         return
 
     # --- Gemini call ---
     reply = await _ask_gemini(prompt)
     _record_response()
-    await _send_ig_message(TARGET_THREAD_ID, reply)
+    await _send_ig_message(sender_id, reply)
 
 
 # ---------------------------------------------------------------------------

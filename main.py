@@ -9,7 +9,7 @@ import httpx
 from fastapi import FastAPI, Request, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
 load_dotenv()
 
@@ -148,14 +148,23 @@ async def _send_ig_message(target_id: str, text: str) -> None:
             log.info("Message sent to thread %s", target_id)
 
 
+# Model tanımlama ve soru sorma işlemi (Örnek)
 async def _ask_gemini(prompt: str) -> str:
-    """Send prompt to Gemini and return the response text."""
     try:
-        response = await gemini_model.generate_content_async(prompt)
-        text = response.text.strip()
-        return text[:MAX_RESPONSE_CHARS]
-    except Exception as exc:
-        log.exception("Gemini API error: %s", exc)
+        # Yeni client oluşturuluyor
+        client = genai.Client()
+        
+        # Yeni sisteme göre içerik oluşturuluyor
+        response = client.models.generate_content(
+            model='gemini-2.0-flash', # Veya gemini-1.5-flash
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+            ),
+        )
+        return response.text
+    except Exception as e:
+        logger.error(f"Gemini API error: {e}")
         return "Üzgünüm, şu anda yanıt oluşturamıyorum. Lütfen biraz sonra tekrar deneyin."
 
 

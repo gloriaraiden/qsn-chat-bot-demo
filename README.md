@@ -1,3 +1,5 @@
+# This is an example of an API key and authentication token.
+
 # Instagram Gemini Bot
 
 A FastAPI webhook that connects an Instagram group chat to Google Gemini. The bot listens for @mentions in a single target thread, enforces a cooldown between AI responses, blocks image-generation requests, and replies in Turkish.

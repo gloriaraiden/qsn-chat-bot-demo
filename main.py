@@ -160,7 +160,7 @@ async def _ask_gemini(prompt: str, user_name: str) -> str:
             f"Kullanıcı sorusu: {prompt}"
         )
         response = gemini_client.models.generate_content(
-            model='gemini-1.5-flash-latest',
+            model='gemini-3-flash',
             contents=full_prompt,
         )
         if response and response.text and response.text.strip():

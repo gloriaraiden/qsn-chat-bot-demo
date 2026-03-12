@@ -1,111 +1,105 @@
-# This is an example of an API key and authentication token.
-
 # Instagram Gemini Bot
 
-A FastAPI webhook that connects an Instagram group chat to Google Gemini. The bot listens for @mentions in a single target thread, enforces a cooldown between AI responses, blocks image-generation requests, and replies in Turkish.
+Instagram grup sohbetlerini Google Gemini ile bağlayan FastAPI webhook. Bot, Türkçe yanıt verir, kullanıcı bazlı cooldown uygular, görsel oluşturma isteklerini engeller ve kendi mesajlarını (echo) filtreler.
 
 ---
 
-## Quick Start
+**English:** A FastAPI webhook that connects Instagram group chats to Google Gemini. The bot replies in Turkish, enforces per-user cooldown, blocks image-generation requests, and filters its own echoed messages.
+
+---
+
+## Özellikler / Features
+
+| Özellik | Feature |
+|---------|---------|
+| Google Gemini 1.5 Flash (v1beta API) | Google Gemini 1.5 Flash (v1beta API) |
+| Kullanıcı bazlı cooldown | Per-user cooldown |
+| `is_echo` ile sonsuz döngü önleme | Prevents infinite loop via `is_echo` |
+| DM ve grup desteği | DM and group chat support |
+| Background tasks ile hızlı webhook yanıtı | Fast webhook response with background tasks |
+| Görsel oluşturma isteklerini engelleme | Blocks image-generation requests |
+| "Kaç dakika kaldı?" komutu | "How many minutes left?" command |
+
+---
+
+## Hızlı Başlangıç / Quick Start
 
 ```bash
-# 1. Clone and enter the project
+# 1. Projeyi klonlayın / Clone the project
 cd FIproject
 
-# 2. Create a virtual environment
+# 2. Sanal ortam oluşturun / Create virtual environment
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # macOS / Linux
 
-# 3. Install dependencies
+# 3. Bağımlılıkları yükleyin / Install dependencies
 pip install -r requirements.txt
 
-# 4. Copy and fill in your environment variables
+# 4. .env dosyası oluşturun / Create .env file
 copy .env.example .env       # Windows
 # cp .env.example .env       # macOS / Linux
 
-# 5. Run the server
+# 5. Sunucuyu çalıştırın / Run the server
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ---
 
-## Environment Variables
+## Ortam Değişkenleri / Environment Variables
 
-| Variable | Description |
-|---|---|
-| `IG_ACCESS_TOKEN` | Instagram page access token with `instagram_manage_messages` permission |
-| `VERIFY_TOKEN` | Arbitrary string you set in the Meta webhook configuration |
-| `GEMINI_API_KEY` | API key from [Google AI Studio](https://aistudio.google.com/apikey) |
-| `TARGET_THREAD_ID` | The group-chat thread ID the bot should respond in |
-| `BOT_USERNAME` | The bot's Instagram username (without `@`) |
-| `COOLDOWN_SECONDS` | Seconds between AI responses (default `300` = 5 min) |
-
----
-
-## How to Find the Instagram Thread ID
-
-There is no direct "copy thread ID" button in the Instagram UI. Use one of these approaches:
-
-### Option A — Read it from the Webhook Payload (Recommended)
-
-1. Deploy the bot with `TARGET_THREAD_ID` set to any placeholder value.
-2. Send a message in the target group chat that mentions the bot.
-3. Check your server logs — the incoming webhook payload contains `recipient.id`, which is the thread ID.
-4. Copy that value, set it as `TARGET_THREAD_ID` in your `.env`, and restart the server.
-
-### Option B — Instagram Graph API Explorer
-
-1. Go to the [Meta Graph API Explorer](https://developers.facebook.com/tools/explorer/).
-2. Select your app and use the page token that has `instagram_manage_messages`.
-3. Call `GET /me/conversations?platform=instagram` to list recent threads.
-4. Identify your group chat and copy its `id` field.
+| Variable | Açıklama / Description |
+|----------|------------------------|
+| `IG_ACCESS_TOKEN` | Instagram sayfa erişim tokenı (`instagram_manage_messages` izni gerekli) |
+| `VERIFY_TOKEN` | Meta webhook yapılandırmasında belirlediğiniz doğrulama anahtarı |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) API anahtarı |
+| `TARGET_THREAD_ID` | Botun yanıt vereceği grup sohbeti thread ID'si (boş veya `FIND_ME` = Discovery modu) |
+| `BOT_USERNAME` | Botun Instagram kullanıcı adı (@ olmadan) |
+| `COOLDOWN_SECONDS` | AI yanıtları arası süre (varsayılan `300` = 5 dk) |
 
 ---
 
-## Deploying
+## Thread ID Nasıl Bulunur? / How to Find Thread ID
 
-### Render (Recommended — Free Tier Available)
+**Discovery Modu (Önerilen):** `TARGET_THREAD_ID` boş veya `FIND_ME` olarak ayarlayın, sunucuyu çalıştırın. Grupta mesaj gönderin, konsolda thread ID yazdırılacak.
 
-1. Push this repo to GitHub.
-2. Create a new **Web Service** on [render.com](https://render.com).
-3. Set the **Build Command** to `pip install -r requirements.txt`.
-4. Set the **Start Command** to `uvicorn main:app --host 0.0.0.0 --port $PORT`.
-5. Add all environment variables from `.env` in the Render dashboard.
-6. Copy the generated URL (e.g. `https://your-app.onrender.com`) and set the webhook callback URL in Meta App Dashboard to `https://your-app.onrender.com/webhook`.
-
-### Railway / Fly.io
-
-Same general flow — push repo, set env vars, point Meta webhook to `https://<your-domain>/webhook`.
-
-### Local Development with ngrok
-
-```bash
-# Terminal 1: run the server
-uvicorn main:app --host 0.0.0.0 --port 8000
-
-# Terminal 2: expose it
-ngrok http 8000
-```
-
-Use the ngrok HTTPS URL as your webhook callback in the Meta App Dashboard.
+**API Explorer:** [Meta Graph API Explorer](https://developers.facebook.com/tools/explorer/) → `GET /me/conversations?platform=instagram`
 
 ---
 
-## Meta App Dashboard Webhook Setup
+## Deploy (Render)
 
-1. Go to [Meta for Developers](https://developers.facebook.com/) → your app → **Webhooks**.
-2. Subscribe to the **Instagram** product, event type **messages**.
-3. Set **Callback URL** to `https://<your-domain>/webhook`.
-4. Set **Verify Token** to the same value as `VERIFY_TOKEN` in your `.env`.
-5. Click **Verify and Save**.
+1. Repoyu GitHub'a push edin.
+2. [render.com](https://render.com) üzerinde **Web Service** oluşturun.
+3. **Build Command:** `pip install -r requirements.txt`
+4. **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+5. Environment variables'ı Render paneline ekleyin.
+6. Meta App Dashboard'da webhook callback URL: `https://<your-app>.onrender.com/webhook`
 
 ---
 
-## Endpoints
+## Meta Webhook Kurulumu
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/webhook` | Meta webhook verification (hub.challenge handshake) |
-| `POST` | `/webhook` | Receives incoming Instagram messages |
-| `GET` | `/health` | Health check + remaining cooldown |
+1. [Meta for Developers](https://developers.facebook.com/) → Uygulamanız → **Webhooks**
+2. **Instagram** ürününe abone olun, event: **messages**
+3. **Callback URL:** `https://<your-domain>/webhook`
+4. **Verify Token:** `.env` içindeki `VERIFY_TOKEN` ile aynı olmalı
+
+---
+
+## API Endpoints
+
+| Method | Path | Açıklama |
+|--------|------|----------|
+| `GET` | `/webhook` | Meta webhook doğrulama |
+| `POST` | `/webhook` | Gelen Instagram mesajları |
+| `GET` | `/health` | Durum kontrolü |
+
+---
+
+## Teknolojiler / Tech Stack
+
+- **FastAPI** – Web framework
+- **Google Gemini** – AI (gemini-1.5-flash, v1beta)
+- **httpx** – HTTP client
+- **Instagram Messaging API** – Mesajlaşma

@@ -9,7 +9,6 @@ from fastapi import FastAPI, Request, Query, HTTPException, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
 
 load_dotenv()
 
@@ -38,7 +37,10 @@ log = logging.getLogger("ig-gemini-bot")
 # ---------------------------------------------------------------------------
 # Gemini setup
 # ---------------------------------------------------------------------------
-
+gemini_client = genai.Client(
+    api_key=GEMINI_API_KEY,
+    http_options={'api_version': 'v1'},
+)
 
 SYSTEM_INSTRUCTION = (
     "You are an AI assistant in an Instagram group chat. "
@@ -147,42 +149,22 @@ async def _send_ig_message(target_id: str, text: str) -> None:
             log.info("Message sent to thread %s", target_id)
 
 
-# Model tanımlama ve soru sorma işlemi (Örnek)
 async def _get_ig_user_name(sender_id: str) -> str:
-    """Instagram sender_id üzerinden kullanıcının adını çeker."""
-    url = f"https://graph.facebook.com/v21.0/{sender_id}"
-    # first_name yerine name ve username istiyoruz
-    params = {"fields": "name,username", "access_token": IG_ACCESS_TOKEN}
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, params=params)
-            if resp.status_code == 200:
-                data = resp.json()
-                # Öncelik name (tam ad), yoksa username, o da yoksa Misafir
-                return data.get("name") or data.get("username") or "Misafir"
-            return "Misafir"
-    except Exception as e:
-        log.error("İsim çekme hatası: %s", e)
-        return "Misafir"
+    """Instagram Mesajlaşma API'sindeki sender_id, Facebook Graph API ile uyumlu değil.
+    İsim çekme 400 döndüğü için doğrudan Misafir dönüyoruz."""
+    return "Misafir"
 
-# Model tanımlama ve soru sorma işlemi (Güncellendi: v1 zorlaması eklendi)
+# Model tanımlama ve soru sorma işlemi
 async def _ask_gemini(prompt: str, user_name: str) -> str:
     try:
-        # SDK v1 (stable) versiyonuna zorlandı (404 ve 429 hatası çözümü)
-        client = genai.Client(
-            api_key=GEMINI_API_KEY,
-            http_options={'api_version': 'v1'}
+        # Talimatı prompt içine gömüyoruz (system_instruction API hatası vermez)
+        full_prompt = (
+            f"{SYSTEM_INSTRUCTION} Kullanıcının adı {user_name}. Ona ismiyle hitap et.\n\n"
+            f"Kullanıcı sorusu: {prompt}"
         )
-        
-        # İsme özel dinamik instruction
-        personalized_instruction = f"{SYSTEM_INSTRUCTION} Kullanıcının adı {user_name}. Ona ismiyle hitap et."
-        
-        response = client.models.generate_content(
+        response = gemini_client.models.generate_content(
             model='gemini-1.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=personalized_instruction,
-            ),
+            contents=full_prompt,
         )
         if response and response.text and response.text.strip():
             return response.text
@@ -259,6 +241,11 @@ async def _handle_message(event: dict) -> None:
     if not text:
         return
 
+    # --- Echo filtresi: Botun kendi gönderdiği mesajları yoksay (Meta webhook is_echo=true) ---
+    if message.get("is_echo") is True:
+        log.debug("Echo mesajı yoksayılıyor (is_echo=true)")
+        return
+
     # --- Discovery mode: log thread ID and stop ---
     if DISCOVERY_MODE:
         log.info(
@@ -285,6 +272,9 @@ async def _handle_message(event: dict) -> None:
     #    log.debug("Ignoring message without bot mention from %s", sender_id)
     #    return
 
+    # Yanıt alıcısı: DM ve grup için sender_id kullanılır (Instagram API otomatik yönlendirir)
+    reply_to_id: str = sender_id
+
     log.info("Processing message from %s: %s", sender_id, text[:80])
 
     # --- Rule 4: Special "kaç dakika kaldı" command (always replies) ---
@@ -301,7 +291,7 @@ async def _handle_message(event: dict) -> None:
                 reply = f"Bir sonraki mesaj için {minutes} dakika beklemeniz gerekiyor."
             else:
                 reply = f"Bir sonraki mesaj için {seconds} saniye beklemeniz gerekiyor."
-        await _send_ig_message(sender_id, reply)
+        await _send_ig_message(reply_to_id, reply)
         return
 
     # --- Rule 3: Cooldown — stay completely silent to prevent spam ---
@@ -317,19 +307,19 @@ async def _handle_message(event: dict) -> None:
     user_name = await _get_ig_user_name(sender_id)
 
     if not prompt:
-        await _send_ig_message(sender_id, f"Merhaba {user_name}, lütfen bir soru veya mesaj yazın.")
+        await _send_ig_message(reply_to_id, f"Merhaba {user_name}, lütfen bir soru veya mesaj yazın.")
         return
 
     # --- Rule 5: Image generation prevention ---
     if _wants_image(prompt):
-        await _send_ig_message(sender_id, f"Üzgünüm {user_name}, şu anlık görsel oluşturamıyorum.")
+        await _send_ig_message(reply_to_id, f"Üzgünüm {user_name}, şu anlık görsel oluşturamıyorum.")
         return
 
     # --- Gemini call ---
     # 2. Prompt ve çekilen ismi Gemini'ye yolluyoruz
     reply = await _ask_gemini(prompt, user_name)
     _record_response(sender_id)
-    await _send_ig_message(sender_id, reply)
+    await _send_ig_message(reply_to_id, reply)
 
 
 # ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 IG_ACCESS_TOKEN: str = os.environ["IG_ACCESS_TOKEN"]
 VERIFY_TOKEN: str = os.environ["VERIFY_TOKEN"]
-GEMINI_API_KEY: str = os.environ["GEMINI_API_KEY"]
+GEMINI_API_KEY: str = os.environ["GEMINI_API_KEY"].strip()  # Boşluk = 404 önleme
 TARGET_THREAD_ID: str = os.environ.get("TARGET_THREAD_ID", "").strip()
 DISCOVERY_MODE: bool = TARGET_THREAD_ID in ("", "FIND_ME")
 BOT_USERNAME: str = os.environ.get("BOT_USERNAME", "bot_username")
@@ -37,10 +37,7 @@ log = logging.getLogger("ig-gemini-bot")
 # ---------------------------------------------------------------------------
 # Gemini setup
 # ---------------------------------------------------------------------------
-gemini_client = genai.Client(
-    api_key=GEMINI_API_KEY,
-    http_options={'api_version': 'v1'},
-)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_INSTRUCTION = (
     "You are an AI assistant in an Instagram group chat. "
@@ -163,7 +160,7 @@ async def _ask_gemini(prompt: str, user_name: str) -> str:
             f"Kullanıcı sorusu: {prompt}"
         )
         response = gemini_client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-1.5-flash-latest',
             contents=full_prompt,
         )
         if response and response.text and response.text.strip():

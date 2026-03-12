@@ -4,9 +4,8 @@ import time
 import logging
 import unicodedata
 from contextlib import asynccontextmanager
-
 import httpx
-from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi import FastAPI, Request, Query, HTTPException, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from google import genai
@@ -72,19 +71,21 @@ IMAGE_PATTERN: re.Pattern = re.compile(
 # ---------------------------------------------------------------------------
 # Cooldown state  (in-memory; sufficient for single-instance deployment)
 # ---------------------------------------------------------------------------
-_last_response_ts: float = 0.0
+_last_responses: dict[str, float] = {}
 
 
-def _cooldown_remaining() -> float:
+def _cooldown_remaining(sender_id: str) -> float:
     """Return remaining cooldown in seconds (0.0 if expired)."""
-    elapsed = time.time() - _last_response_ts
+    # Eğer bu kişi daha önce mesaj atmadıysa süresini 0.0 kabul et
+    last_ts = _last_responses.get(sender_id, 0.0) 
+    elapsed = time.time() - last_ts
     remaining = COOLDOWN_SECONDS - elapsed
     return max(remaining, 0.0)
 
 
-def _record_response() -> None:
-    global _last_response_ts
-    _last_response_ts = time.time()
+def _record_response(sender_id: str) -> None:
+    # Sadece mesaj atan kişinin süresini şu anki zaman olarak kaydet
+    _last_responses[sender_id] = time.time()
 
 
 # ---------------------------------------------------------------------------
@@ -148,14 +149,17 @@ async def _send_ig_message(target_id: str, text: str) -> None:
 
 # Model tanımlama ve soru sorma işlemi (Örnek)
 async def _get_ig_user_name(sender_id: str) -> str:
-    """Instagram sender_id üzerinden kullanıcının ilk adını çeker."""
+    """Instagram sender_id üzerinden kullanıcının adını çeker."""
     url = f"https://graph.facebook.com/v21.0/{sender_id}"
-    params = {"fields": "first_name", "access_token": IG_ACCESS_TOKEN}
+    # first_name yerine name ve username istiyoruz
+    params = {"fields": "name,username", "access_token": IG_ACCESS_TOKEN}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, params=params)
             if resp.status_code == 200:
-                return resp.json().get("first_name", "Misafir")
+                data = resp.json()
+                # Öncelik name (tam ad), yoksa username, o da yoksa Misafir
+                return data.get("name") or data.get("username") or "Misafir"
             return "Misafir"
     except Exception as e:
         log.error("İsim çekme hatası: %s", e)
@@ -182,7 +186,7 @@ async def _ask_gemini(prompt: str, user_name: str) -> str:
         )
         return response.text
     except Exception as e:
-        print(f"Gemini API hatası: {e}") 
+        log.error("Gemini API hatası: %s", e)
         return "Üzgünüm, şu anda yanıt oluşturamıyorum. Lütfen biraz sonra tekrar deneyin."
 
 
@@ -229,13 +233,14 @@ async def verify_webhook(
 # Webhook event receiver (POST)
 # ---------------------------------------------------------------------------
 @app.post("/webhook")
-async def receive_webhook(request: Request):
+async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
     body = await request.json()
     log.debug("Incoming payload: %s", body)
 
     for entry in body.get("entry", []):
         for messaging_event in entry.get("messaging", []):
-            await _handle_message(messaging_event)
+            # İşlemi arka plana atıyoruz, böylece Instagram'a anında 200 döneriz.
+            background_tasks.add_task(_handle_message, messaging_event)
 
     return {"status": "ok"}
 
@@ -280,7 +285,7 @@ async def _handle_message(event: dict) -> None:
 
     # --- Rule 4: Special "kaç dakika kaldı" command (always replies) ---
     if _is_cooldown_query(text):
-        remaining = _cooldown_remaining()
+        remaining = _cooldown_remaining(sender_id)
         if remaining <= 0:
             reply = "Şu an bana soru sorabilirsiniz!"
         else:
@@ -296,7 +301,7 @@ async def _handle_message(event: dict) -> None:
         return
 
     # --- Rule 3: Cooldown — stay completely silent to prevent spam ---
-    remaining = _cooldown_remaining()
+    remaining = _cooldown_remaining(sender_id)
     if remaining > 0:
         log.debug("Cooldown active (%.0fs left), silently ignoring message from %s", remaining, sender_id)
         return
@@ -304,18 +309,22 @@ async def _handle_message(event: dict) -> None:
     # Strip the @mention from the prompt before processing
     prompt = _strip_mention(text)
 
+    # 1. İsmi çekiyoruz
+    user_name = await _get_ig_user_name(sender_id)
+
     if not prompt:
-        await _send_ig_message(sender_id, "Lütfen bir soru veya mesaj yazın.")
+        await _send_ig_message(sender_id, f"Merhaba {user_name}, lütfen bir soru veya mesaj yazın.")
         return
 
     # --- Rule 5: Image generation prevention ---
     if _wants_image(prompt):
-        await _send_ig_message(sender_id, "Şu anlık görsel oluşturamıyorum.")
+        await _send_ig_message(sender_id, f"Üzgünüm {user_name}, şu anlık görsel oluşturamıyorum.")
         return
 
     # --- Gemini call ---
-    reply = await _ask_gemini(prompt)
-    _record_response()
+    # 2. Prompt ve çekilen ismi Gemini'ye yolluyoruz
+    reply = await _ask_gemini(prompt, user_name)
+    _record_response(sender_id)
     await _send_ig_message(sender_id, reply)
 
 
@@ -324,7 +333,7 @@ async def _handle_message(event: dict) -> None:
 # ---------------------------------------------------------------------------
 @app.get("/health")
 async def health():
-    return {"status": "ok", "cooldown_remaining": round(_cooldown_remaining(), 1)}
+    return {"status": "ok", "cooldown_seconds": COOLDOWN_SECONDS}
 
 
 if __name__ == "__main__":

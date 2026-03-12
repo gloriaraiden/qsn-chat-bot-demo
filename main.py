@@ -37,7 +37,10 @@ log = logging.getLogger("ig-gemini-bot")
 # ---------------------------------------------------------------------------
 # Gemini setup
 # ---------------------------------------------------------------------------
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+gemini_client = genai.Client(
+    api_key=GEMINI_API_KEY,
+    http_options={'api_version': 'v1'},
+)
 
 SYSTEM_INSTRUCTION = (
     "You are an AI assistant in an Instagram group chat. "
@@ -160,7 +163,7 @@ async def _ask_gemini(prompt: str, user_name: str) -> str:
             f"Kullanıcı sorusu: {prompt}"
         )
         response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3.1-flash',
             contents=full_prompt,
         )
         if response and response.text and response.text.strip():

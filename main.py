@@ -184,7 +184,11 @@ async def _ask_gemini(prompt: str, user_name: str) -> str:
                 system_instruction=personalized_instruction,
             ),
         )
-        return response.text
+        if response and response.text and response.text.strip():
+            return response.text
+        else:
+            log.warning("Gemini boş yanıt döndürdü.")
+            return "Üzgünüm, bu içeriğe şu anda yanıt veremiyorum."
     except Exception as e:
         log.error("Gemini API hatası: %s", e)
         return "Üzgünüm, şu anda yanıt oluşturamıyorum. Lütfen biraz sonra tekrar deneyin."

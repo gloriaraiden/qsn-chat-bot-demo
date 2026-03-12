@@ -39,7 +39,7 @@ log = logging.getLogger("ig-gemini-bot")
 # ---------------------------------------------------------------------------
 gemini_client = genai.Client(
     api_key=GEMINI_API_KEY,
-    http_options={'api_version': 'v1'},
+    http_options={'api_version': 'v1beta'},
 )
 
 SYSTEM_INSTRUCTION = (

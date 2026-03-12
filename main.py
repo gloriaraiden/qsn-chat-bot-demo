@@ -37,10 +37,7 @@ log = logging.getLogger("ig-gemini-bot")
 # ---------------------------------------------------------------------------
 # Gemini setup
 # ---------------------------------------------------------------------------
-gemini_client = genai.Client(
-    api_key=GEMINI_API_KEY,
-    http_options={'api_version': 'v1beta'},
-)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_INSTRUCTION = (
     "You are an AI assistant in an Instagram group chat. "

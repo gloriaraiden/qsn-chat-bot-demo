@@ -147,20 +147,41 @@ async def _send_ig_message(target_id: str, text: str) -> None:
 
 
 # Model tanımlama ve soru sorma işlemi (Örnek)
-async def _ask_gemini(prompt: str) -> str:
+async def _get_ig_user_name(sender_id: str) -> str:
+    """Instagram sender_id üzerinden kullanıcının ilk adını çeker."""
+    url = f"https://graph.facebook.com/v21.0/{sender_id}"
+    params = {"fields": "first_name", "access_token": IG_ACCESS_TOKEN}
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, params=params)
+            if resp.status_code == 200:
+                return resp.json().get("first_name", "Misafir")
+            return "Misafir"
+    except Exception as e:
+        log.error("İsim çekme hatası: %s", e)
+        return "Misafir"
+
+# Model tanımlama ve soru sorma işlemi (Güncellendi: v1 zorlaması eklendi)
+async def _ask_gemini(prompt: str, user_name: str) -> str:
+    try:
+        # SDK v1 (stable) versiyonuna zorlandı (404 ve 429 hatası çözümü)
+        client = genai.Client(
+            api_key=GEMINI_API_KEY,
+            http_options={'api_version': 'v1'}
+        )
+        
+        # İsme özel dinamik instruction
+        personalized_instruction = f"{SYSTEM_INSTRUCTION} Kullanıcının adı {user_name}. Ona ismiyle hitap et."
         
         response = client.models.generate_content(
-            model='gemini-1.5-flash',  # '-latest' takısını tamamen sildik
+            model='gemini-1.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_INSTRUCTION,
+                system_instruction=personalized_instruction,
             ),
         )
         return response.text
     except Exception as e:
-        # 'logger' kelimesini garantili olsun diye 'print' ile değiştirdik
         print(f"Gemini API hatası: {e}") 
         return "Üzgünüm, şu anda yanıt oluşturamıyorum. Lütfen biraz sonra tekrar deneyin."
 
